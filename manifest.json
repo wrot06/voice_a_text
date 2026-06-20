@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Voz a Texto - Transcriptor",
+  "version": "1.0",
+  "description": "Transcribe tu voz a texto en tiempo real. Soporta atajos de teclado F2/F9 y múltiples idiomas.",
+  "action": {
+    "default_title": "Abrir Transcriptor"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}
