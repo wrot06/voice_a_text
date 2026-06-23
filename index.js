@@ -6,6 +6,7 @@ let isKeyPressed = false;      // Prevents keydown repeat events
 let accumulatedTranscript = '';
 let recognition = null;
 let recognitionRunning = false; // Tracks SpeechRecognition's internal active state
+let pendingPunctuation = '';
 
 // Web Audio API variables for Visualizer
 let audioCtx = null;
@@ -35,6 +36,9 @@ const clearBtn = document.getElementById('clearBtn');
 const copyBtn = document.getElementById('copyBtn');
 const toast = document.getElementById('toast');
 const toastMsg = document.getElementById('toastMsg');
+const saveStatus = document.getElementById('saveStatus');
+const saveStatusSeparator = document.getElementById('saveStatusSeparator');
+const saveStatusText = document.getElementById('saveStatusText');
 
 // Check Speech Recognition Support
 if (!SpeechRecognition) {
@@ -42,6 +46,41 @@ if (!SpeechRecognition) {
   transcriptText.disabled = true;
   recordBtn.disabled = true;
   langSelect.disabled = true;
+}
+
+// -------------------------------------------------------------
+// Grammar and Casing Helpers
+// -------------------------------------------------------------
+
+function adjustCasing(prevText, newText) {
+  if (!prevText || !newText) return newText;
+  
+  // Find the first letter in newText (skipping leading spaces)
+  let firstLetterIdx = 0;
+  while (firstLetterIdx < newText.length && newText[firstLetterIdx] === ' ') {
+    firstLetterIdx++;
+  }
+  
+  if (firstLetterIdx >= newText.length) return newText;
+  
+  const trimmedPrev = prevText.trimEnd();
+  if (trimmedPrev.length === 0) return newText;
+  
+  const lastChar = trimmedPrev[trimmedPrev.length - 1];
+  const sentenceEndings = ['.', '?', '!', '\n'];
+  const shouldCapitalize = sentenceEndings.includes(lastChar);
+  
+  if (!shouldCapitalize) {
+    // Lowercase the first letter
+    return newText.slice(0, firstLetterIdx) + 
+           newText.charAt(firstLetterIdx).toLowerCase() + 
+           newText.slice(firstLetterIdx + 1);
+  } else {
+    // Capitalize the first letter
+    return newText.slice(0, firstLetterIdx) + 
+           newText.charAt(firstLetterIdx).toUpperCase() + 
+           newText.slice(firstLetterIdx + 1);
+  }
 }
 
 // -------------------------------------------------------------
@@ -57,30 +96,77 @@ function initSpeechRecognition() {
 
   recognition.onstart = () => {
     recognitionRunning = true;
+    pendingPunctuation = '';
     updateUI();
     initAudioContext().catch(err => console.warn('Web Audio initialization skipped:', err));
   };
 
   recognition.onresult = (event) => {
     let interimTranscript = '';
+    let hasFinal = false;
     
     // We process results from the current event index
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       if (event.results[i].isFinal) {
         let finalChunk = event.results[i][0].transcript;
+        let adjustedChunk = adjustCasing(accumulatedTranscript, finalChunk);
         
-        // Trim leading space if appending, but ensure separation
-        if (accumulatedTranscript && !accumulatedTranscript.endsWith(' ') && !finalChunk.startsWith(' ')) {
-          accumulatedTranscript += ' ';
+        // Append chunk with smart spacing
+        if (accumulatedTranscript) {
+          const endsWithSpace = accumulatedTranscript.endsWith(' ');
+          const startsWithSpace = adjustedChunk.startsWith(' ');
+          
+          if (endsWithSpace && startsWithSpace) {
+            accumulatedTranscript += adjustedChunk.slice(1);
+          } else if (!endsWithSpace && !startsWithSpace) {
+            accumulatedTranscript += ' ' + adjustedChunk;
+          } else {
+            accumulatedTranscript += adjustedChunk;
+          }
+        } else {
+          accumulatedTranscript += adjustedChunk.trimStart();
         }
-        accumulatedTranscript += finalChunk;
+        hasFinal = true;
       } else {
         interimTranscript += event.results[i][0].transcript;
       }
     }
 
-    transcriptText.value = accumulatedTranscript;
+    if (hasFinal && pendingPunctuation) {
+      accumulatedTranscript = accumulatedTranscript.trimEnd();
+      accumulatedTranscript += pendingPunctuation;
+      pendingPunctuation = '';
+    }
+
+    // Build display text with interim text appended
+    let displayText = accumulatedTranscript;
+    if (interimTranscript) {
+      let adjustedInterim = adjustCasing(accumulatedTranscript, interimTranscript);
+      if (displayText) {
+        const endsWithSpace = displayText.endsWith(' ');
+        const startsWithSpace = adjustedInterim.startsWith(' ');
+        
+        if (endsWithSpace && startsWithSpace) {
+          displayText += adjustedInterim.slice(1);
+        } else if (!endsWithSpace && !startsWithSpace) {
+          displayText += ' ' + adjustedInterim;
+        } else {
+          displayText += adjustedInterim;
+        }
+      } else {
+        displayText += adjustedInterim.trimStart();
+      }
+    }
+    transcriptText.value = displayText;
+    
+    // Scroll to the bottom of the textarea automatically
+    transcriptText.scrollTop = transcriptText.scrollHeight;
+
     updateStats();
+
+    if (hasFinal) {
+      saveTranscriptToStorage();
+    }
 
     if (interimTranscript) {
       interimText.textContent = interimTranscript;
@@ -120,6 +206,17 @@ function initSpeechRecognition() {
   recognition.onend = () => {
     recognitionRunning = false;
     
+    if (pendingPunctuation) {
+      accumulatedTranscript = accumulatedTranscript.trimEnd();
+      accumulatedTranscript += pendingPunctuation;
+      pendingPunctuation = '';
+      
+      transcriptText.value = accumulatedTranscript;
+      transcriptText.scrollTop = transcriptText.scrollHeight;
+      saveTranscriptToStorage();
+      updateStats();
+    }
+    
     // If the state is still recording, it means Chrome closed it due to silence,
     // or network fluctuations. We restart it to ensure continuous experience.
     if (isRecording) {
@@ -156,6 +253,7 @@ function startRecording(source) {
     isRecording = true;
     activeSource = source;
     
+    updateUI();
     startSpeechRecognitionEngine();
   } else {
     // If it's already recording and we trigger it via button while key is active,
@@ -193,8 +291,13 @@ function stopRecording(source) {
 function updateUI() {
   if (isRecording) {
     // Update Badge
-    statusIndicator.className = 'status-badge status-recording';
-    statusText.textContent = 'Grabando...';
+    if (recognitionRunning) {
+      statusIndicator.className = 'status-badge status-recording';
+      statusText.textContent = 'Grabando...';
+    } else {
+      statusIndicator.className = 'status-badge status-recording status-connecting';
+      statusText.textContent = 'Iniciando...';
+    }
     
     // Update main button
     recordBtn.classList.add('recording-active');
@@ -314,6 +417,8 @@ resizeCanvas();
 function drawVisualizer() {
   requestAnimationFrame(drawVisualizer);
   
+  if (document.hidden) return;
+  
   const width = visualizer.width;
   const height = visualizer.height;
   
@@ -412,8 +517,33 @@ recordBtn.addEventListener('click', () => {
   }
 });
 
-// Keyboard Listeners (F2 and F9 for Push-to-Talk)
+// Keyboard Listeners (F2 and F9 for Push-to-Talk, Punctuation hotkeys during recording)
 window.addEventListener('keydown', (e) => {
+  // Punctuation Hotkeys while recording
+  const punctuationKeys = ['.', ',', ';', ':', '?', '!'];
+  if (isRecording && punctuationKeys.includes(e.key)) {
+    const isTextareaFocused = document.activeElement === transcriptText;
+    const interimLen = (interimText.textContent || '').length;
+    
+    // Only intercept if not focused, or focused but cursor is at the end (ignoring interim text)
+    if (!isTextareaFocused || transcriptText.selectionStart >= transcriptText.value.length - interimLen) {
+      e.preventDefault();
+      
+      // Store the punctuation to be appended after finalization
+      pendingPunctuation = e.key;
+      
+      // Stop the engine. This forces it to finalize the current interim transcript.
+      if (recognition && recognitionRunning) {
+        recognition.stop();
+      }
+      
+      // Clear interim UI state immediately
+      interimText.textContent = '';
+      interimTextContainer.classList.remove('active');
+      return;
+    }
+  }
+
   if (e.key === 'F2' || e.key === 'F9') {
     e.preventDefault();
     
@@ -437,6 +567,7 @@ window.addEventListener('keyup', (e) => {
 
 // Select language changed
 langSelect.addEventListener('change', () => {
+  saveTranscriptToStorage();
   if (isRecording) {
     // Restart recognition with updated language setting
     recognition.stop(); // will trigger onend, starting again with new langSelect value
@@ -445,7 +576,18 @@ langSelect.addEventListener('change', () => {
 
 // Text Input manually modified (sync accumulator)
 transcriptText.addEventListener('input', () => {
-  accumulatedTranscript = transcriptText.value;
+  if (isRecording && interimText.textContent) {
+    const val = transcriptText.value;
+    const interim = interimText.textContent;
+    if (val.endsWith(interim)) {
+      accumulatedTranscript = val.substring(0, val.length - interim.length).trimEnd();
+    } else {
+      accumulatedTranscript = val;
+    }
+  } else {
+    accumulatedTranscript = transcriptText.value;
+  }
+  saveTranscriptToStorage();
   updateStats();
 });
 
@@ -456,6 +598,7 @@ clearBtn.addEventListener('click', () => {
   if (confirm('¿Estás seguro de que deseas limpiar el texto transcrito?')) {
     accumulatedTranscript = '';
     transcriptText.value = '';
+    saveTranscriptToStorage();
     updateStats();
     showToast('Texto borrado');
   }
@@ -477,3 +620,98 @@ copyBtn.addEventListener('click', async () => {
     showToast('Error al copiar el texto', 'danger');
   }
 });
+
+// -------------------------------------------------------------
+// Storage & Recovery Logic
+// -------------------------------------------------------------
+
+function saveTranscriptToStorage() {
+  const data = {
+    savedTranscript: accumulatedTranscript,
+    savedLanguage: langSelect.value
+  };
+  
+  if (saveStatus && saveStatusText) {
+    saveStatus.style.display = 'inline-flex';
+    if (saveStatusSeparator) saveStatusSeparator.style.display = 'inline';
+    saveStatusText.textContent = 'Guardando...';
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set(data, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('Error saving to chrome.storage:', chrome.runtime.lastError);
+      } else {
+        if (saveStatusText) saveStatusText.textContent = 'Guardado';
+      }
+    });
+  } else {
+    try {
+      localStorage.setItem('savedTranscript', accumulatedTranscript);
+      localStorage.setItem('savedLanguage', langSelect.value);
+      if (saveStatusText) saveStatusText.textContent = 'Guardado';
+    } catch (err) {
+      console.warn('Error saving to localStorage:', err);
+    }
+  }
+}
+
+function loadTranscriptFromStorage() {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['savedTranscript', 'savedLanguage'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Error loading from chrome.storage:', chrome.runtime.lastError);
+        loadFallback();
+        return;
+      }
+      
+      let hasData = false;
+      if (result.savedTranscript !== undefined) {
+        accumulatedTranscript = result.savedTranscript;
+        transcriptText.value = accumulatedTranscript;
+        hasData = true;
+      }
+      if (result.savedLanguage !== undefined) {
+        langSelect.value = result.savedLanguage;
+      }
+      
+      if (hasData && saveStatus && saveStatusSeparator) {
+        saveStatus.style.display = 'inline-flex';
+        saveStatusSeparator.style.display = 'inline';
+        if (saveStatusText) saveStatusText.textContent = 'Guardado';
+      }
+      updateStats();
+    });
+  } else {
+    loadFallback();
+  }
+
+  function loadFallback() {
+    try {
+      const savedTxt = localStorage.getItem('savedTranscript');
+      const savedLang = localStorage.getItem('savedLanguage');
+      let hasData = false;
+      if (savedTxt !== null) {
+        accumulatedTranscript = savedTxt;
+        transcriptText.value = accumulatedTranscript;
+        hasData = true;
+      }
+      if (savedLang !== null) {
+        langSelect.value = savedLang;
+      }
+      
+      if (hasData && saveStatus && saveStatusSeparator) {
+        saveStatus.style.display = 'inline-flex';
+        saveStatusSeparator.style.display = 'inline';
+        if (saveStatusText) saveStatusText.textContent = 'Guardado';
+      }
+      updateStats();
+    } catch (err) {
+      console.warn('Error loading from localStorage:', err);
+    }
+  }
+}
+
+// Load storage on startup
+loadTranscriptFromStorage();
+
