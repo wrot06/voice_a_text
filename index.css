@@ -128,7 +128,7 @@ body {
 }
 
 .logo-icon {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  
   width: 48px;
   height: 48px;
   border-radius: 14px;
@@ -136,13 +136,10 @@ body {
   justify-content: center;
   align-items: center;
   color: white;
-  box-shadow: 0 4px 15px var(--color-primary-glow);
+  
 }
 
-.logo-icon svg {
-  width: 24px;
-  height: 24px;
-}
+
 
 .app-header h1 {
   font-family: var(--font-display);
@@ -844,5 +841,185 @@ textarea::-webkit-scrollbar-thumb:hover {
   50% {
     transform: scale(1.3);
     opacity: 0.6;
+  }
+}
+
+
+.logo-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+}
+
+/* =============================================================
+   Responsive Design & Media Queries
+   ============================================================= */
+
+/* Tablet and Smaller Desktop Breakpoint (max-width: 900px) */
+@media (max-width: 900px) {
+  body {
+    padding: 1.5rem 1rem;
+  }
+
+  .app-container {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+}
+
+/* Tablet / Mobile Transition Breakpoint (max-width: 768px) */
+@media (max-width: 768px) {
+  .glow-bg {
+    width: 280px;
+    height: 280px;
+    filter: blur(90px);
+  }
+
+  .glow-primary {
+    top: -50px;
+    left: 5%;
+  }
+
+  .glow-secondary {
+    bottom: -100px;
+    right: 5%;
+  }
+
+  .app-container {
+    border-radius: 20px;
+    padding: 1.25rem;
+  }
+
+  .sidebar-panel {
+    gap: 1.25rem;
+  }
+
+  .panel-section {
+    padding: 1rem;
+    border-radius: 14px;
+  }
+}
+
+/* Mobile Devices Breakpoint (max-width: 600px) */
+@media (max-width: 600px) {
+  body {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .app-container {
+    padding: 1rem;
+    gap: 1.25rem;
+    border-radius: 16px;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .logo-area {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+  }
+
+  .status-badge {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .text-stats {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .transcription-panel {
+    padding: 1rem;
+    border-radius: 16px;
+    min-height: auto;
+  }
+
+  textarea {
+    min-height: 220px;
+    font-size: 0.95rem;
+    padding: 0.85rem;
+  }
+
+  .interim-container {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .record-btn {
+    width: 120px;
+    height: 120px;
+    margin: 0.5rem 0;
+  }
+
+  .record-btn svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .record-btn .btn-text {
+    font-size: 0.85rem;
+  }
+
+  .canvas-container {
+    height: 70px;
+  }
+}
+
+/* Small Mobile Devices (max-width: 480px) */
+@media (max-width: 480px) {
+  .app-container {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0.25rem;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  body {
+    background-color: var(--bg-darker);
+    padding: 0.5rem;
+  }
+
+  .panel-footer {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    padding-top: 1rem;
+  }
+
+  .panel-footer .action-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.85rem;
+  }
+
+  .shortcut-item {
+    font-size: 0.75rem;
+  }
+
+  kbd {
+    font-size: 0.75rem;
   }
 }
