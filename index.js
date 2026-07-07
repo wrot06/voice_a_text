@@ -33,6 +33,7 @@ const interimText = document.getElementById('interimText');
 const charCount = document.getElementById('charCount');
 const wordCount = document.getElementById('wordCount');
 const clearBtn = document.getElementById('clearBtn');
+const downloadBtn = document.getElementById('downloadBtn');
 const copyBtn = document.getElementById('copyBtn');
 const toast = document.getElementById('toast');
 const toastMsg = document.getElementById('toastMsg');
@@ -618,6 +619,42 @@ copyBtn.addEventListener('click', async () => {
   } catch (err) {
     console.error('Error copying text:', err);
     showToast('Error al copiar el texto', 'danger');
+  }
+});
+
+// Action Button: Download Text as .txt File
+downloadBtn.addEventListener('click', () => {
+  const text = transcriptText.value.trim();
+  if (text === '') {
+    showToast('No hay texto para descargar', 'danger');
+    return;
+  }
+  
+  try {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    a.href = url;
+    a.download = `transcripcion_${year}-${month}-${day}_${hours}-${minutes}-${seconds}.txt`;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('¡Archivo descargado!');
+  } catch (err) {
+    console.error('Error downloading text:', err);
+    showToast('Error al descargar el archivo', 'danger');
   }
 });
 
