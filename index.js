@@ -6,7 +6,13 @@ let isKeyPressed = false;      // Prevents keydown repeat events
 let accumulatedTranscript = '';
 let recognition = null;
 let recognitionRunning = false; // Tracks SpeechRecognition's internal active state
+let isStarting = false;         // Tracks if recognition is in the process of starting
 let pendingPunctuation = '';
+
+// Settings State
+let smartPunctuationEnabled = true;
+let shortcutMode = 'hold'; // 'hold' or 'toggle'
+let fontSize = 16; // default font size in px
 
 // Web Audio API variables for Visualizer
 let audioCtx = null;
@@ -40,6 +46,14 @@ const toastMsg = document.getElementById('toastMsg');
 const saveStatus = document.getElementById('saveStatus');
 const saveStatusSeparator = document.getElementById('saveStatusSeparator');
 const saveStatusText = document.getElementById('saveStatusText');
+
+// New UI Elements
+const smartPunctuationCheckbox = document.getElementById('smartPunctuationCheckbox');
+const shortcutModeSelect = document.getElementById('shortcutModeSelect');
+const decFontBtn = document.getElementById('decFontBtn');
+const incFontBtn = document.getElementById('incFontBtn');
+const speakBtn = document.getElementById('speakBtn');
+const shortcutDescText = document.getElementById('shortcutDescText');
 
 // Check Speech Recognition Support
 if (!SpeechRecognition) {
@@ -84,6 +98,60 @@ function adjustCasing(prevText, newText) {
   }
 }
 
+function applySmartPunctuation(text, lang) {
+  if (!text) return text;
+  
+  let cleaned = text;
+  const lowerLang = lang.toLowerCase();
+  
+  if (lowerLang.startsWith('es')) {
+    const replacements = [
+      { regex: /\bpunto y aparte\b/gi, replacement: '.\n' },
+      { regex: /\bnueva línea\b/gi, replacement: '\n' },
+      { regex: /\bpunto y coma\b/gi, replacement: ';' },
+      { regex: /\bdos puntos\b/gi, replacement: ':' },
+      { regex: /\bpunto\b/gi, replacement: '.' },
+      { regex: /\bcoma\b/gi, replacement: ',' },
+      { regex: /\bsigno de interrogación\b/gi, replacement: '?' },
+      { regex: /\bsigno de exclamación\b/gi, replacement: '!' }
+    ];
+    replacements.forEach(r => {
+      cleaned = cleaned.replace(r.regex, r.replacement);
+    });
+  } else if (lowerLang.startsWith('en')) {
+    const replacements = [
+      { regex: /\bnew line\b/gi, replacement: '\n' },
+      { regex: /\bperiod\b/gi, replacement: '.' },
+      { regex: /\bfull stop\b/gi, replacement: '.' },
+      { regex: /\bcomma\b/gi, replacement: ',' },
+      { regex: /\bsemicolon\b/gi, replacement: ';' },
+      { regex: /\bcolon\b/gi, replacement: ':' },
+      { regex: /\bquestion mark\b/gi, replacement: '?' },
+      { regex: /\bexclamation mark\b/gi, replacement: '!' },
+      { regex: /\bexclamation point\b/gi, replacement: '!' }
+    ];
+    replacements.forEach(r => {
+      cleaned = cleaned.replace(r.regex, r.replacement);
+    });
+  } else if (lowerLang.startsWith('pt')) {
+    const replacements = [
+      { regex: /\bponto e vírgula\b/gi, replacement: ';' },
+      { regex: /\bdois pontos\b/gi, replacement: ':' },
+      { regex: /\bponto final\b/gi, replacement: '.' },
+      { regex: /\bponto\b/gi, replacement: '.' },
+      { regex: /\bvírgula\b/gi, replacement: ',' },
+      { regex: /\bponto de interrogação\b/gi, replacement: '?' },
+      { regex: /\bponto de exclamação\b/gi, replacement: '!' },
+      { regex: /\bnova linha\b/gi, replacement: '\n' }
+    ];
+    replacements.forEach(r => {
+      cleaned = cleaned.replace(r.regex, r.replacement);
+    });
+  }
+  
+  return cleaned;
+}
+
 // -------------------------------------------------------------
 // Speech Recognition Logic
 // -------------------------------------------------------------
@@ -97,6 +165,7 @@ function initSpeechRecognition() {
 
   recognition.onstart = () => {
     recognitionRunning = true;
+    isStarting = false;
     pendingPunctuation = '';
     updateUI();
     initAudioContext().catch(err => console.warn('Web Audio initialization skipped:', err));
@@ -110,6 +179,9 @@ function initSpeechRecognition() {
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       if (event.results[i].isFinal) {
         let finalChunk = event.results[i][0].transcript;
+        if (smartPunctuationEnabled) {
+          finalChunk = applySmartPunctuation(finalChunk, langSelect.value);
+        }
         let adjustedChunk = adjustCasing(accumulatedTranscript, finalChunk);
         
         // Append chunk with smart spacing
@@ -129,7 +201,11 @@ function initSpeechRecognition() {
         }
         hasFinal = true;
       } else {
-        interimTranscript += event.results[i][0].transcript;
+        let chunk = event.results[i][0].transcript;
+        if (smartPunctuationEnabled) {
+          chunk = applySmartPunctuation(chunk, langSelect.value);
+        }
+        interimTranscript += chunk;
       }
     }
 
@@ -179,6 +255,7 @@ function initSpeechRecognition() {
 
   recognition.onerror = (event) => {
     console.warn('Speech recognition error:', event.error);
+    isStarting = false;
     // 'no-speech' is a normal event when the user is silent. We ignore it to let it restart.
     // For other fatal errors, we must stop recording to avoid infinite loop spams.
     if (event.error !== 'no-speech') {
@@ -206,6 +283,7 @@ function initSpeechRecognition() {
 
   recognition.onend = () => {
     recognitionRunning = false;
+    isStarting = false;
     
     if (pendingPunctuation) {
       accumulatedTranscript = accumulatedTranscript.trimEnd();
@@ -221,7 +299,14 @@ function initSpeechRecognition() {
     // If the state is still recording, it means Chrome closed it due to silence,
     // or network fluctuations. We restart it to ensure continuous experience.
     if (isRecording) {
-      startSpeechRecognitionEngine();
+      // Add a small delay (e.g., 400ms) to let Chrome and PulseAudio/Pipewire
+      // fully release the microphone before requesting it again.
+      // This prevents the OS taskbar microphone notification from spamming/blinking.
+      setTimeout(() => {
+        if (isRecording) {
+          startSpeechRecognitionEngine();
+        }
+      }, 400);
     } else {
       stopMicrophone();
       updateUI();
@@ -232,12 +317,14 @@ function initSpeechRecognition() {
 function startSpeechRecognitionEngine() {
   if (!recognition) initSpeechRecognition();
   
-  if (!recognitionRunning) {
+  if (!recognitionRunning && !isStarting) {
+    isStarting = true;
     recognition.lang = langSelect.value;
     try {
       recognition.start();
     } catch (err) {
       console.error('Failed to start recognition:', err);
+      isStarting = false;
     }
   }
 }
@@ -572,7 +659,15 @@ window.addEventListener('keydown', (e) => {
     if (isKeyPressed) return; // Prevent repeated keydown firing from keyboard repeat
     isKeyPressed = true;
     
-    startRecording('key');
+    if (shortcutMode === 'hold') {
+      startRecording('key');
+    } else {
+      if (isRecording && activeSource === 'key') {
+        stopRecording('key');
+      } else {
+        startRecording('key');
+      }
+    }
     updateUI();
   }
 });
@@ -582,8 +677,10 @@ window.addEventListener('keyup', (e) => {
     e.preventDefault();
     
     isKeyPressed = false;
-    stopRecording('key');
-    updateUI();
+    if (shortcutMode === 'hold') {
+      stopRecording('key');
+      updateUI();
+    }
   }
 });
 
@@ -686,7 +783,10 @@ downloadBtn.addEventListener('click', () => {
 function saveTranscriptToStorage() {
   const data = {
     savedTranscript: accumulatedTranscript,
-    savedLanguage: langSelect.value
+    savedLanguage: langSelect.value,
+    savedSmartPunctuation: smartPunctuationEnabled,
+    savedShortcutMode: shortcutMode,
+    savedFontSize: fontSize
   };
   
   if (saveStatus && saveStatusText) {
@@ -707,6 +807,9 @@ function saveTranscriptToStorage() {
     try {
       localStorage.setItem('savedTranscript', accumulatedTranscript);
       localStorage.setItem('savedLanguage', langSelect.value);
+      localStorage.setItem('savedSmartPunctuation', smartPunctuationEnabled);
+      localStorage.setItem('savedShortcutMode', shortcutMode);
+      localStorage.setItem('savedFontSize', fontSize);
       if (saveStatusText) saveStatusText.textContent = 'Guardado';
     } catch (err) {
       console.warn('Error saving to localStorage:', err);
@@ -716,7 +819,7 @@ function saveTranscriptToStorage() {
 
 function loadTranscriptFromStorage() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['savedTranscript', 'savedLanguage'], (result) => {
+    chrome.storage.local.get(['savedTranscript', 'savedLanguage', 'savedSmartPunctuation', 'savedShortcutMode', 'savedFontSize'], (result) => {
       if (chrome.runtime.lastError) {
         console.warn('Error loading from chrome.storage:', chrome.runtime.lastError);
         loadFallback();
@@ -731,6 +834,19 @@ function loadTranscriptFromStorage() {
       }
       if (result.savedLanguage !== undefined) {
         langSelect.value = result.savedLanguage;
+      }
+      if (result.savedSmartPunctuation !== undefined) {
+        smartPunctuationEnabled = result.savedSmartPunctuation;
+        if (smartPunctuationCheckbox) smartPunctuationCheckbox.checked = smartPunctuationEnabled;
+      }
+      if (result.savedShortcutMode !== undefined) {
+        shortcutMode = result.savedShortcutMode;
+        if (shortcutModeSelect) shortcutModeSelect.value = shortcutMode;
+        updateShortcutDesc();
+      }
+      if (result.savedFontSize !== undefined) {
+        fontSize = result.savedFontSize;
+        applyFontSize();
       }
       
       if (hasData && saveStatus && saveStatusSeparator) {
@@ -748,6 +864,10 @@ function loadTranscriptFromStorage() {
     try {
       const savedTxt = localStorage.getItem('savedTranscript');
       const savedLang = localStorage.getItem('savedLanguage');
+      const savedSmartPunc = localStorage.getItem('savedSmartPunctuation');
+      const savedShortMode = localStorage.getItem('savedShortcutMode');
+      const savedFontS = localStorage.getItem('savedFontSize');
+      
       let hasData = false;
       if (savedTxt !== null) {
         accumulatedTranscript = savedTxt;
@@ -756,6 +876,19 @@ function loadTranscriptFromStorage() {
       }
       if (savedLang !== null) {
         langSelect.value = savedLang;
+      }
+      if (savedSmartPunc !== null) {
+        smartPunctuationEnabled = (savedSmartPunc === 'true');
+        if (smartPunctuationCheckbox) smartPunctuationCheckbox.checked = smartPunctuationEnabled;
+      }
+      if (savedShortMode !== null) {
+        shortcutMode = savedShortMode;
+        if (shortcutModeSelect) shortcutModeSelect.value = shortcutMode;
+        updateShortcutDesc();
+      }
+      if (savedFontS !== null) {
+        fontSize = parseInt(savedFontS, 10);
+        applyFontSize();
       }
       
       if (hasData && saveStatus && saveStatusSeparator) {
@@ -768,6 +901,129 @@ function loadTranscriptFromStorage() {
       console.warn('Error loading from localStorage:', err);
     }
   }
+}
+
+// Helper functions for new controls
+function applyFontSize() {
+  if (transcriptText) {
+    transcriptText.style.fontSize = `${fontSize}px`;
+  }
+}
+
+function updateShortcutDesc() {
+  if (shortcutDescText) {
+    if (shortcutMode === 'hold') {
+      shortcutDescText.textContent = 'Mantén presionado para hablar (Push-to-Talk)';
+    } else {
+      shortcutDescText.textContent = 'Presiona una vez para encender/apagar';
+    }
+  }
+}
+
+// Font Control Listeners
+if (decFontBtn) {
+  decFontBtn.addEventListener('click', () => {
+    if (fontSize > 12) {
+      fontSize -= 2;
+      applyFontSize();
+      saveTranscriptToStorage();
+    }
+  });
+}
+
+if (incFontBtn) {
+  incFontBtn.addEventListener('click', () => {
+    if (fontSize < 32) {
+      fontSize += 2;
+      applyFontSize();
+      saveTranscriptToStorage();
+    }
+  });
+}
+
+// Smart Punctuation Listener
+if (smartPunctuationCheckbox) {
+  smartPunctuationCheckbox.addEventListener('change', () => {
+    smartPunctuationEnabled = smartPunctuationCheckbox.checked;
+    saveTranscriptToStorage();
+  });
+}
+
+// Shortcut Mode Listener
+if (shortcutModeSelect) {
+  shortcutModeSelect.addEventListener('change', () => {
+    shortcutMode = shortcutModeSelect.value;
+    updateShortcutDesc();
+    saveTranscriptToStorage();
+  });
+}
+
+// Read Aloud (TTS) Listener
+if (speakBtn) {
+  const synth = window.speechSynthesis;
+  let utterance = null;
+  
+  speakBtn.addEventListener('click', () => {
+    if (!synth) {
+      showToast('Tu navegador no soporta síntesis de voz', 'danger');
+      return;
+    }
+    
+    if (synth.speaking) {
+      synth.cancel();
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+      return;
+    }
+    
+    const text = transcriptText.value.trim();
+    if (!text) {
+      showToast('No hay texto para escuchar', 'danger');
+      return;
+    }
+    
+    utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langSelect.value;
+    
+    utterance.onend = () => {
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+    };
+    
+    utterance.onerror = (e) => {
+      console.error('TTS utterance error:', e);
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+    };
+    
+    speakBtn.classList.add('speaking');
+    speakBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-square">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      </svg>
+      Detener
+    `;
+    
+    synth.speak(utterance);
+  });
 }
 
 // Load storage on startup

@@ -70,7 +70,31 @@
           </div>
         </div>
 
+        <!-- Advanced Options Panel -->
+        <div class="panel-section options-section">
+          <h2>Opciones Avanzadas</h2>
+          
+          <!-- Smart Punctuation -->
+          <div class="form-group-checkbox">
+            <label class="switch-container">
+              <input type="checkbox" id="smartPunctuationCheckbox" checked>
+              <span class="slider"></span>
+              <span class="label-text">Puntuación Inteligente</span>
+            </label>
+            <p class="field-desc">Escribe "." o "," cuando dices "punto" o "coma".</p>
+          </div>
 
+          <!-- Shortcut mode selector -->
+          <div class="form-group" style="margin-top: 1.25rem;">
+            <label for="shortcutModeSelect">Comportamiento de F2/F9</label>
+            <div class="custom-select-wrapper">
+              <select id="shortcutModeSelect">
+                <option value="hold" selected>Mantener presionado</option>
+                <option value="toggle">Presionar para alternar</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         <!-- Canvas Visualizer -->
         <div class="panel-section visualizer-section">
@@ -88,7 +112,7 @@
           <h2>Atajos de Teclado</h2>
           <div class="shortcut-item">
             <kbd>F2</kbd> o <kbd>F9</kbd>
-            <span class="shortcut-desc">Mantén presionado para hablar (Push-to-Talk)</span>
+            <span id="shortcutDescText" class="shortcut-desc">Mantén presionado para hablar (Push-to-Talk)</span>
           </div>
           <p class="focused-note">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="info-icon">
@@ -104,7 +128,13 @@
       <!-- Main Panel: Transcription output -->
       <main class="transcription-panel">
         <div class="panel-header">
-          <h2>Texto Transcrito</h2>
+          <div class="panel-title-area">
+            <h2>Texto Transcrito</h2>
+            <div class="font-controls">
+              <button id="decFontBtn" class="font-btn" title="Disminuir tamaño de letra">A-</button>
+              <button id="incFontBtn" class="font-btn" title="Aumentar tamaño de letra">A+</button>
+            </div>
+          </div>
           <div class="text-stats">
             <span id="saveStatus" class="save-status" style="display: none;">
               <svg class="save-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -137,6 +167,14 @@
               <line x1="14" y1="11" x2="14" y2="17"></line>
             </svg>
             Limpiar Texto
+          </button>
+
+          <button id="speakBtn" class="action-btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            Escuchar
           </button>
 
           <button id="downloadBtn" class="action-btn btn-secondary">
