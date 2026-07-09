@@ -27,10 +27,19 @@
           <p class="subtitle">Transcripción instantánea desde tu micrófono</p>
         </div>
       </div>
-      <div id="statusIndicator" class="status-badge status-idle">
-        <span class="status-dot"></span>
-        <span class="status-text">Listo</span>
-      </div>
+      <!-- Record Button -->
+      <button id="recordBtn" class="record-btn">
+        <span class="pulse-ring"></span>
+        <span class="btn-content">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-mic icon-mic">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          <span class="btn-text">Grabar</span>
+        </span>
+      </button>
     </header>
 
     <div class="main-layout">
@@ -61,35 +70,7 @@
           </div>
         </div>
 
-        <div class="panel-section record-section">
-          <h2>Control de Grabación</h2>
-          
-          <!-- Record Button -->
-          <button id="recordBtn" class="record-btn">
-            <span class="pulse-ring"></span>
-            <span class="btn-content">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-mic icon-mic">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-              </svg>
-              <span class="btn-text">Grabar</span>
-            </span>
-          </button>
-          
-          <!-- Active Mode indicators -->
-          <div class="active-modes">
-            <div id="modeBtnIndicator" class="mode-tag mode-inactive">
-              <span class="mode-dot"></span>
-              Modo Continuo Activo
-            </div>
-            <div id="modeKeyIndicator" class="mode-tag mode-inactive">
-              <span class="mode-dot"></span>
-              F2 / F9 Presionado
-            </div>
-          </div>
-        </div>
+
 
         <!-- Canvas Visualizer -->
         <div class="panel-section visualizer-section">
@@ -156,6 +137,15 @@
               <line x1="14" y1="11" x2="14" y2="17"></line>
             </svg>
             Limpiar Texto
+          </button>
+
+          <button id="downloadBtn" class="action-btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Descargar Texto
           </button>
           
           <button id="copyBtn" class="action-btn btn-primary">

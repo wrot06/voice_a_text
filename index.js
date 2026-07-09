@@ -20,7 +20,7 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 
 // UI Elements
 const statusIndicator = document.getElementById('statusIndicator');
-const statusText = statusIndicator.querySelector('.status-text');
+const statusText = statusIndicator ? statusIndicator.querySelector('.status-text') : null;
 const langSelect = document.getElementById('langSelect');
 const recordBtn = document.getElementById('recordBtn');
 const modeBtnIndicator = document.getElementById('modeBtnIndicator');
@@ -33,6 +33,7 @@ const interimText = document.getElementById('interimText');
 const charCount = document.getElementById('charCount');
 const wordCount = document.getElementById('wordCount');
 const clearBtn = document.getElementById('clearBtn');
+const downloadBtn = document.getElementById('downloadBtn');
 const copyBtn = document.getElementById('copyBtn');
 const toast = document.getElementById('toast');
 const toastMsg = document.getElementById('toastMsg');
@@ -291,41 +292,55 @@ function stopRecording(source) {
 function updateUI() {
   if (isRecording) {
     // Update Badge
-    if (recognitionRunning) {
-      statusIndicator.className = 'status-badge status-recording';
-      statusText.textContent = 'Grabando...';
-    } else {
-      statusIndicator.className = 'status-badge status-recording status-connecting';
-      statusText.textContent = 'Iniciando...';
+    if (statusIndicator) {
+      if (recognitionRunning) {
+        statusIndicator.className = 'status-badge status-recording';
+        if (statusText) statusText.textContent = 'Grabando...';
+      } else {
+        statusIndicator.className = 'status-badge status-recording status-connecting';
+        if (statusText) statusText.textContent = 'Iniciando...';
+      }
     }
     
     // Update main button
-    recordBtn.classList.add('recording-active');
+    if (recordBtn) {
+      recordBtn.classList.add('recording-active');
+    }
     
     // Update indicators
-    if (activeSource === 'button') {
-      modeBtnIndicator.className = 'mode-tag mode-active-btn';
-    } else {
-      modeBtnIndicator.className = 'mode-tag mode-inactive';
+    if (modeBtnIndicator) {
+      if (activeSource === 'button') {
+        modeBtnIndicator.className = 'mode-tag mode-active-btn';
+      } else {
+        modeBtnIndicator.className = 'mode-tag mode-inactive';
+      }
     }
     
   } else {
     // Update Badge
-    statusIndicator.className = 'status-badge status-idle';
-    statusText.textContent = 'Listo';
+    if (statusIndicator) {
+      statusIndicator.className = 'status-badge status-idle';
+      if (statusText) statusText.textContent = 'Listo';
+    }
     
     // Update main button
-    recordBtn.classList.remove('recording-active');
+    if (recordBtn) {
+      recordBtn.classList.remove('recording-active');
+    }
     
     // Update indicators
-    modeBtnIndicator.className = 'mode-tag mode-inactive';
+    if (modeBtnIndicator) {
+      modeBtnIndicator.className = 'mode-tag mode-inactive';
+    }
   }
   
   // Key indicator is driven directly by keyboard events state
-  if (isKeyPressed) {
-    modeKeyIndicator.className = 'mode-tag mode-active-key';
-  } else {
-    modeKeyIndicator.className = 'mode-tag mode-inactive';
+  if (modeKeyIndicator) {
+    if (isKeyPressed) {
+      modeKeyIndicator.className = 'mode-tag mode-active-key';
+    } else {
+      modeKeyIndicator.className = 'mode-tag mode-inactive';
+    }
   }
 }
 
@@ -515,6 +530,13 @@ recordBtn.addEventListener('click', () => {
   } else {
     startRecording('button');
   }
+
+  // Posicionar cursor al final de la caja de texto y darle foco
+  if (transcriptText) {
+    transcriptText.focus();
+    const len = transcriptText.value.length;
+    transcriptText.setSelectionRange(len, len);
+  }
 });
 
 // Keyboard Listeners (F2 and F9 for Push-to-Talk, Punctuation hotkeys during recording)
@@ -618,6 +640,42 @@ copyBtn.addEventListener('click', async () => {
   } catch (err) {
     console.error('Error copying text:', err);
     showToast('Error al copiar el texto', 'danger');
+  }
+});
+
+// Action Button: Download Text as .txt File
+downloadBtn.addEventListener('click', () => {
+  const text = transcriptText.value.trim();
+  if (text === '') {
+    showToast('No hay texto para descargar', 'danger');
+    return;
+  }
+
+  try {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    a.href = url;
+    a.download = `transcripcion_${year}-${month}-${day}_${hours}-${minutes}-${seconds}.txt`;
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('¡Archivo descargado!');
+  } catch (err) {
+    console.error('Error downloading text:', err);
+    showToast('Error al descargar el archivo', 'danger');
   }
 });
 
