@@ -27,19 +27,29 @@
           <p class="subtitle">Transcripción instantánea desde tu micrófono</p>
         </div>
       </div>
-      <!-- Record Button -->
-      <button id="recordBtn" class="record-btn">
-        <span class="pulse-ring"></span>
-        <span class="btn-content">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-mic icon-mic">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
+      <!-- Header Action Group -->
+      <div class="header-actions">
+        <button id="historyToggleBtn" class="history-btn" title="Historial de Transcripciones">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-clock">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
-          <span class="btn-text">Grabar</span>
-        </span>
-      </button>
+          <span>Historial</span>
+        </button>
+        <!-- Record Button -->
+        <button id="recordBtn" class="record-btn">
+          <span class="pulse-ring"></span>
+          <span class="btn-content">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-mic icon-mic">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span class="btn-text">Grabar</span>
+          </span>
+        </button>
+      </div>
     </header>
 
     <div class="main-layout">
@@ -84,6 +94,16 @@
             <p class="field-desc">Escribe "." o "," cuando dices "punto" o "coma".</p>
           </div>
 
+          <!-- Voice Commands -->
+          <div class="form-group-checkbox" style="margin-top: 1rem;">
+            <label class="switch-container">
+              <input type="checkbox" id="voiceCommandsCheckbox" checked>
+              <span class="slider"></span>
+              <span class="label-text">Comandos Verbales</span>
+            </label>
+            <p class="field-desc">Di "nuevo párrafo" o "limpiar todo" durante el dictado.</p>
+          </div>
+
           <!-- Shortcut mode selector -->
           <div class="form-group" style="margin-top: 1.25rem;">
             <label for="shortcutModeSelect">Comportamiento de F2/F9</label>
@@ -92,6 +112,93 @@
                 <option value="hold" selected>Mantener presionado</option>
                 <option value="toggle">Presionar para alternar</option>
               </select>
+            </div>
+          </div>
+
+          <!-- Optional API Key -->
+          <div class="form-group" style="margin-top: 1.25rem;">
+            <label for="apiKeyInput">Clave API de Google / Groq / OpenAI (Opcional)</label>
+            <input type="password" id="apiKeyInput" class="text-input" placeholder="AQ... | AIzaSy... | gsk_... | sk-...">
+            <p class="field-desc">Ingresa tu clave de Google Gemini (AQ..., AIza...), Groq o OpenAI para transcribir archivos.</p>
+          </div>
+        </div>
+
+        <!-- Audio File Upload Panel -->
+        <div class="panel-section audio-upload-section">
+          <h2>Transcribir Archivo de Audio</h2>
+          
+          <div id="audioDropzone" class="audio-dropzone">
+            <input type="file" id="audioFileInput" accept="audio/*,video/mp4,.mp4,.mp3,.wav,.m4a,.ogg,.webm" class="file-input-hidden">
+            <div class="dropzone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p class="dropzone-text">Arrastra un archivo de audio o MP4 aquí</p>
+              <span class="dropzone-sub">o haz clic para explorar (.mp3, .mp4, .wav, .m4a, .ogg)</span>
+            </div>
+          </div>
+
+          <!-- File Processing Card (Hidden initially) -->
+          <div id="fileStatusCard" class="file-status-card hidden">
+            <div class="file-info-header">
+              <div class="file-name-area">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="file-icon">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+                <span id="audioFileName" class="file-name-text">archivo.mp3</span>
+              </div>
+              <button id="removeFileBtn" class="file-remove-btn" title="Quitar archivo">&times;</button>
+            </div>
+
+            <div class="file-meta-row">
+              <span id="audioFileDuration" class="meta-tag">00:00</span>
+              <div class="speed-selector-group">
+                <label for="speedSelect" class="speed-label">Velocidad:</label>
+                <select id="speedSelect" class="speed-select">
+                  <option value="1">1x</option>
+                  <option value="1.5" selected>1.5x</option>
+                  <option value="2">2x (Rápido)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="progressContainer" class="progress-container hidden">
+              <div class="progress-bar-track">
+                <div id="audioProgressBar" class="progress-bar-fill"></div>
+              </div>
+              <span id="audioProgressPercent" class="progress-text">0%</span>
+            </div>
+
+            <!-- File Controls -->
+            <div class="file-action-buttons">
+              <button id="startFileTranscribeBtn" class="action-btn btn-primary btn-sm full-width">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="feather feather-play">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Transcribir Audio
+              </button>
+              <button id="cancelFileTranscribeBtn" class="action-btn btn-danger btn-sm full-width hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="feather feather-square">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+                Detener
+              </button>
+            <!-- File Error Box (copiable) -->
+            <div id="fileErrorBox" class="file-error-box hidden">
+              <div class="file-error-content">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="error-box-icon">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span id="fileErrorText" class="file-error-text"></span>
+              </div>
+              <button id="closeFileErrorBtn" class="close-error-btn">&times;</button>
             </div>
           </div>
         </div>
@@ -112,7 +219,11 @@
           <h2>Atajos de Teclado</h2>
           <div class="shortcut-item">
             <kbd>F2</kbd> o <kbd>F9</kbd>
-            <span id="shortcutDescText" class="shortcut-desc">Mantén presionado para hablar (Push-to-Talk)</span>
+            <span id="shortcutDescText" class="shortcut-desc">Mantén presionado para hablar (Pestaña enfocada)</span>
+          </div>
+          <div class="shortcut-item" style="margin-top: 0.75rem;">
+            <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+            <span class="shortcut-desc">Atajo Global (Desde cualquier pestaña)</span>
           </div>
           <p class="focused-note">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="info-icon">
@@ -120,32 +231,80 @@
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
-            Para usar las teclas, esta pestaña debe estar enfocada.
+            Usa Alt+Shift+S para grabar o pausar sin salir de tu navegación actual.
           </p>
         </div>
       </aside>
 
       <!-- Main Panel: Transcription output -->
       <main class="transcription-panel">
-        <div class="panel-header">
-          <div class="panel-title-area">
-            <h2>Texto Transcrito</h2>
+        <!-- Top Toolbar: All Action Buttons in a single row + Controls & Stats -->
+        <div class="panel-toolbar">
+          <div class="toolbar-actions">
+            <button id="copyBtn" class="action-btn btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              Copiar
+            </button>
+
+            <button id="speakBtn" class="action-btn btn-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+              Escuchar
+            </button>
+
+            <button id="downloadBtn" class="action-btn btn-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              TXT
+            </button>
+
+            <button id="downloadMDBtn" class="action-btn btn-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
+                <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path>
+                <line x1="9" y1="13" x2="9" y2="17"></line>
+                <line x1="15" y1="13" x2="15" y2="17"></line>
+                <polyline points="9 13 12 15 15 13"></polyline>
+              </svg>
+              Markdown
+            </button>
+
+            <button id="clearBtn" class="action-btn btn-danger">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              Limpiar
+            </button>
+          </div>
+
+          <div class="text-stats-group">
             <div class="font-controls">
               <button id="decFontBtn" class="font-btn" title="Disminuir tamaño de letra">A-</button>
               <button id="incFontBtn" class="font-btn" title="Aumentar tamaño de letra">A+</button>
             </div>
-          </div>
-          <div class="text-stats">
-            <span id="saveStatus" class="save-status" style="display: none;">
-              <svg class="save-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <span id="saveStatusText">Guardado</span>
-            </span>
-            <span id="saveStatusSeparator" class="stat-separator" style="display: none;">•</span>
-            <span id="charCount">0 caracteres</span>
-            <span class="stat-separator">•</span>
-            <span id="wordCount">0 palabras</span>
+            <div class="text-stats">
+              <span id="saveStatus" class="save-status" style="display: none;">
+                <svg class="save-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span id="saveStatusText">Guardado</span>
+              </span>
+              <span id="saveStatusSeparator" class="stat-separator" style="display: none;">•</span>
+              <span id="charCount">0 caracteres</span>
+              <span class="stat-separator">•</span>
+              <span id="wordCount">0 palabras</span>
+            </div>
           </div>
         </div>
 
@@ -157,43 +316,6 @@
             <span id="interimText" class="interim-text">...</span>
           </div>
         </div>
-
-        <div class="panel-footer">
-          <button id="clearBtn" class="action-btn btn-danger">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              <line x1="10" y1="11" x2="10" y2="17"></line>
-              <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            Limpiar Texto
-          </button>
-
-          <button id="speakBtn" class="action-btn btn-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            </svg>
-            Escuchar
-          </button>
-
-          <button id="downloadBtn" class="action-btn btn-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Descargar Texto
-          </button>
-          
-          <button id="copyBtn" class="action-btn btn-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            Copiar Texto
-          </button>
-        </div>
       </main>
     </div>
   </div>
@@ -204,6 +326,36 @@
       <polyline points="20 6 9 17 4 12"></polyline>
     </svg>
     <span id="toastMsg">¡Texto copiado al portapapeles!</span>
+  </div>
+
+  <!-- Session History Modal Drawer -->
+  <div id="historyModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title-area">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="modal-icon">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <h3>Historial de Transcripciones</h3>
+        </div>
+        <button id="closeHistoryBtn" class="modal-close-btn" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="history-actions-bar">
+          <span id="historyCountText" class="history-count">0 sesiones guardadas</span>
+          <button id="clearHistoryBtn" class="btn-text-danger" style="display:none;">Limpiar Todo</button>
+        </div>
+        
+        <div id="historyListContainer" class="history-list">
+          <div class="history-empty-state">
+            <p>No tienes sesiones guardadas aún.</p>
+            <p class="empty-sub">Las transcripciones limpiadas o archivadas aparecerán aquí.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="index.js"></script>

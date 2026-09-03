@@ -14,5 +14,14 @@
   },
   "permissions": [
     "storage"
-  ]
+  ],
+  "commands": {
+    "toggle-recording": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Activar o detener la grabación de voz"
+    }
+  }
 }
