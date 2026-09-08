@@ -61,6 +61,11 @@ const incFontBtn = document.getElementById('incFontBtn');
 const speakBtn = document.getElementById('speakBtn');
 const shortcutDescText = document.getElementById('shortcutDescText');
 
+// Settings UI Elements
+const settingsToggleBtn = document.getElementById('settingsToggleBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
 // History UI Elements
 const historyToggleBtn = document.getElementById('historyToggleBtn');
 const historyModal = document.getElementById('historyModal');
@@ -69,11 +74,47 @@ const historyListContainer = document.getElementById('historyListContainer');
 const historyCountText = document.getElementById('historyCountText');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
+// Transcribe Modal UI Elements
+const transcribeToggleBtn = document.getElementById('transcribeToggleBtn');
+const transcribeModal = document.getElementById('transcribeModal');
+const closeTranscribeBtn = document.getElementById('closeTranscribeBtn');
+
 // Audio File Transcription State & UI Elements
 let selectedAudioFile = null;
 let fileAudioElement = null;
 let fileMediaSourceNode = null;
 let isFileTranscribing = false;
+let progressInterval = null;
+
+function setProgressBar(pct) {
+  const val = Math.min(100, Math.max(0, Math.floor(pct)));
+  if (audioProgressBar) audioProgressBar.style.width = `${val}%`;
+  if (audioProgressPercent) audioProgressPercent.textContent = `${val}%`;
+}
+
+function startSmoothProgress(startPct = 10, maxPct = 95, durationMs = 6000) {
+  stopSmoothProgress();
+  let currentPct = startPct;
+  setProgressBar(currentPct);
+
+  const intervalMs = 100;
+  const totalSteps = durationMs / intervalMs;
+  const stepIncrement = (maxPct - startPct) / totalSteps;
+
+  progressInterval = setInterval(() => {
+    if (currentPct < maxPct) {
+      currentPct += stepIncrement + (Math.random() * 0.2 - 0.05);
+      setProgressBar(currentPct);
+    }
+  }, intervalMs);
+}
+
+function stopSmoothProgress() {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = null;
+  }
+}
 
 const audioDropzone = document.getElementById('audioDropzone');
 const audioFileInput = document.getElementById('audioFileInput');
@@ -160,6 +201,17 @@ function adjustCasing(prevText, newText) {
       newText.charAt(firstLetterIdx).toUpperCase() +
       newText.slice(firstLetterIdx + 1);
   }
+}
+
+function fixPunctuationSpacing(text) {
+  if (!text) return text;
+  return text
+    // Remove any spaces BEFORE punctuation marks (e.g. " , " -> ", ", " . " -> ". ")
+    .replace(/\s+([.,;:!?])/g, '$1')
+    // Ensure single space AFTER punctuation if followed by letters or Spanish accents
+    .replace(/([.,;:!?])([a-zA-ZáéíóúñÁÉÍÓÚÑ])/g, '$1 $2')
+    // Collapse any multiple consecutive spaces (preserving newlines)
+    .replace(/[ \t]{2,}/g, ' ');
 }
 
 function applySmartPunctuation(text, lang) {
@@ -258,27 +310,35 @@ function applySmartPunctuation(text, lang) {
     });
   }
 
-  return cleaned;
+  return fixPunctuationSpacing(cleaned);
 }
 
 function handleVoiceCommands(chunk) {
   if (!voiceCommandsEnabled || !chunk) return false;
 
-  const lower = chunk.trim().toLowerCase();
+  const cleanChunk = chunk.trim().toLowerCase().replace(/[.,;!?]+$/g, '').trim();
 
-  // Clear command
-  if (lower === 'limpiar todo' || lower === 'borrar todo' || lower === 'clear all') {
-    archiveCurrentSession('Comando de voz: Limpiar');
-    accumulatedTranscript = '';
-    transcriptText.value = '';
-    saveTranscriptToStorage();
-    updateStats();
-    showToast('Texto limpiado por comando de voz');
+  // 1. Clear text command ("limpiar todo", "borrar todo", "clear all")
+  const clearRegex = /\b(limpiar todo|borrar todo|clear all)\b/i;
+  if (clearRegex.test(cleanChunk)) {
+    if (transcriptText.value.trim() === '') return true;
+
+    if (confirm('¿Estás seguro de que deseas borrar todo el texto transcrito hasta el momento?')) {
+      archiveCurrentSession('Comando de voz: Limpiar');
+      accumulatedTranscript = '';
+      transcriptText.value = '';
+      saveTranscriptToStorage();
+      updateStats();
+      showToast('Texto limpiado por comando de voz');
+    } else {
+      showToast('Limpieza cancelada');
+    }
     return true;
   }
 
-  // Delete last word command
-  if (lower === 'borrar última palabra' || lower === 'delete last word') {
+  // 2. Delete last word command ("borrar última palabra", "delete last word")
+  const deleteWordRegex = /\b(borrar última palabra|borrar ultima palabra|delete last word)\b/i;
+  if (deleteWordRegex.test(cleanChunk)) {
     if (accumulatedTranscript) {
       const words = accumulatedTranscript.trim().split(/\s+/);
       words.pop();
@@ -335,18 +395,29 @@ function initSpeechRecognition() {
 
         // Append chunk with smart spacing
         if (accumulatedTranscript) {
-          const endsWithSpace = accumulatedTranscript.endsWith(' ');
-          const startsWithSpace = adjustedChunk.startsWith(' ');
+          const trimmedChunk = adjustedChunk.trimStart();
+          const startsWithPunctuation = /^[.,;:!?]/.test(trimmedChunk);
 
-          if (endsWithSpace && startsWithSpace) {
-            accumulatedTranscript += adjustedChunk.slice(1);
-          } else if (!endsWithSpace && !startsWithSpace) {
-            accumulatedTranscript += ' ' + adjustedChunk;
+          if (startsWithPunctuation) {
+            accumulatedTranscript = accumulatedTranscript.trimEnd() + trimmedChunk;
           } else {
-            accumulatedTranscript += adjustedChunk;
+            const endsWithSpace = accumulatedTranscript.endsWith(' ');
+            const startsWithSpace = adjustedChunk.startsWith(' ');
+
+            if (endsWithSpace && startsWithSpace) {
+              accumulatedTranscript += adjustedChunk.slice(1);
+            } else if (!endsWithSpace && !startsWithSpace) {
+              accumulatedTranscript += ' ' + adjustedChunk;
+            } else {
+              accumulatedTranscript += adjustedChunk;
+            }
           }
         } else {
           accumulatedTranscript += adjustedChunk.trimStart();
+        }
+
+        if (smartPunctuationEnabled) {
+          accumulatedTranscript = fixPunctuationSpacing(accumulatedTranscript);
         }
         hasFinal = true;
       } else {
@@ -491,6 +562,11 @@ function startSpeechRecognitionEngine() {
 function startRecording(source) {
   if (!SpeechRecognition) return;
 
+  if (isFileTranscribing) {
+    showToast('No se puede grabar mientras se transcribe un archivo de audio', 'warning');
+    return;
+  }
+
   // Track if we need to start
   if (!isRecording) {
     isRecording = true;
@@ -532,6 +608,28 @@ function stopRecording(source) {
 // -------------------------------------------------------------
 
 function updateUI() {
+  if (isFileTranscribing) {
+    if (recordBtn) {
+      recordBtn.disabled = true;
+      recordBtn.classList.add('disabled-btn');
+      recordBtn.title = 'Transcripción de archivo de audio en progreso...';
+    }
+    if (closeTranscribeBtn) {
+      closeTranscribeBtn.classList.add('locked-btn');
+      closeTranscribeBtn.title = 'Transcripción en progreso...';
+    }
+  } else {
+    if (recordBtn) {
+      recordBtn.disabled = false;
+      recordBtn.classList.remove('disabled-btn');
+      recordBtn.title = '';
+    }
+    if (closeTranscribeBtn) {
+      closeTranscribeBtn.classList.remove('locked-btn');
+      closeTranscribeBtn.title = 'Cerrar';
+    }
+  }
+
   if (isRecording) {
     // Update Badge
     if (statusIndicator) {
@@ -586,12 +684,28 @@ function updateUI() {
   }
 }
 
+function updateSaveStatusState() {
+  if (!saveStatus || !saveStatusText) return;
+
+  if (isFileTranscribing) {
+    saveStatus.style.display = 'inline-flex';
+    if (saveStatusSeparator) saveStatusSeparator.style.display = 'inline';
+    saveStatus.classList.add('transcribing-status');
+    saveStatusText.textContent = 'Transcribiendo archivo de audio a texto...';
+  } else {
+    saveStatus.classList.remove('transcribing-status');
+    if (saveStatusText.textContent.includes('Transcribiendo')) {
+      saveStatusText.textContent = 'Guardado';
+    }
+  }
+}
+
 function updateStats() {
   const text = transcriptText.value.trim();
   const charLength = text.length;
   const wordLength = text === '' ? 0 : text.split(/\s+/).length;
 
-  charCount.textContent = `${charLength} ${charLength === 1 ? 'carácter' : 'caracteres'}`;
+  charCount.textContent = `${charLength} ${charLength === 1 ? 'cart' : 'carts'}`;
   wordCount.textContent = `${wordLength} ${wordLength === 1 ? 'palabra' : 'palabras'}`;
 }
 
@@ -787,8 +901,28 @@ recordBtn.addEventListener('click', () => {
   }
 });
 
-// Keyboard Listeners (F2 and F9 for Push-to-Talk, Punctuation hotkeys during recording)
+// Keyboard Listeners (F2 and F9 for Push-to-Talk, Punctuation hotkeys, Escape to close modals)
 window.addEventListener('keydown', (e) => {
+  // Close open modals on Escape key press
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    let modalClosed = false;
+    if (settingsModal && settingsModal.classList.contains('active')) {
+      closeSettingsModal();
+      modalClosed = true;
+    }
+    if (historyModal && historyModal.classList.contains('active')) {
+      closeHistoryModal();
+      modalClosed = true;
+    }
+    if (transcribeModal && transcribeModal.classList.contains('active')) {
+      closeTranscribeModal();
+      modalClosed = true;
+    }
+    if (modalClosed) {
+      e.preventDefault();
+      return;
+    }
+  }
   // Punctuation Hotkeys while recording
   const punctuationKeys = ['.', ',', ';', ':', '?', '!'];
   if (isRecording && punctuationKeys.includes(e.key)) {
@@ -986,6 +1120,84 @@ if (downloadMDBtn) {
   });
 }
 
+// Action Button: Text-To-Speech (Escuchar texto en voz alta)
+if (speakBtn) {
+  speakBtn.addEventListener('click', () => {
+    if (!('speechSynthesis' in window)) {
+      showToast('Tu navegador no soporta la síntesis de voz', 'danger');
+      return;
+    }
+
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+      showToast('Lectura en voz alta detenida');
+      return;
+    }
+
+    const text = transcriptText.value.trim();
+    if (!text) {
+      showToast('No hay texto para escuchar', 'danger');
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (langSelect && langSelect.value) {
+      utterance.lang = langSelect.value;
+    }
+
+    utterance.onstart = () => {
+      speakBtn.classList.add('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-x">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+        Detener
+      `;
+      showToast('Leyendo texto en voz alta...');
+    };
+
+    utterance.onend = () => {
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+    };
+
+    utterance.onerror = (err) => {
+      console.error('Speech synthesis error:', err);
+      speakBtn.classList.remove('speaking');
+      speakBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-volume-2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        Escuchar
+      `;
+      showToast('Error durante la reproducción del habla', 'danger');
+    };
+
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
 // -------------------------------------------------------------
 // Storage & Recovery Logic
 // -------------------------------------------------------------
@@ -1005,7 +1217,11 @@ function saveTranscriptToStorage() {
   if (saveStatus && saveStatusText) {
     saveStatus.style.display = 'inline-flex';
     if (saveStatusSeparator) saveStatusSeparator.style.display = 'inline';
-    saveStatusText.textContent = 'Guardando...';
+    if (isFileTranscribing) {
+      updateSaveStatusState();
+    } else {
+      saveStatusText.textContent = 'Guardando...';
+    }
   }
 
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -1013,7 +1229,11 @@ function saveTranscriptToStorage() {
       if (chrome.runtime.lastError) {
         console.warn('Error saving to chrome.storage:', chrome.runtime.lastError);
       } else {
-        if (saveStatusText) saveStatusText.textContent = 'Guardado';
+        if (isFileTranscribing) {
+          updateSaveStatusState();
+        } else {
+          if (saveStatusText) saveStatusText.textContent = 'Guardado';
+        }
       }
     });
   } else {
@@ -1025,7 +1245,12 @@ function saveTranscriptToStorage() {
       localStorage.setItem('savedShortcutMode', shortcutMode);
       localStorage.setItem('savedFontSize', fontSize);
       localStorage.setItem('savedHistory', JSON.stringify(transcriptionHistory));
-      if (saveStatusText) saveStatusText.textContent = 'Guardado';
+      localStorage.setItem('savedApiKey', apiKeyInput ? apiKeyInput.value : '');
+      if (isFileTranscribing) {
+        updateSaveStatusState();
+      } else {
+        if (saveStatusText) saveStatusText.textContent = 'Guardado';
+      }
     } catch (err) {
       console.warn('Error saving to localStorage:', err);
     }
@@ -1128,6 +1353,10 @@ function loadTranscriptFromStorage() {
           renderHistoryList();
         } catch (e) { }
       }
+      const savedApiKey = localStorage.getItem('savedApiKey');
+      if (savedApiKey !== null && apiKeyInput) {
+        apiKeyInput.value = savedApiKey;
+      }
 
       if (hasData && saveStatus && saveStatusSeparator) {
         saveStatus.style.display = 'inline-flex';
@@ -1183,6 +1412,13 @@ if (incFontBtn) {
 if (voiceCommandsCheckbox) {
   voiceCommandsCheckbox.addEventListener('change', () => {
     voiceCommandsEnabled = voiceCommandsCheckbox.checked;
+    saveTranscriptToStorage();
+  });
+}
+
+// API Key Input Auto-save Listener
+if (apiKeyInput) {
+  apiKeyInput.addEventListener('input', () => {
     saveTranscriptToStorage();
   });
 }
@@ -1303,6 +1539,35 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+// Settings Modal Controls
+function openSettingsModal() {
+  if (settingsModal) {
+    settingsModal.classList.add('active');
+  }
+}
+
+function closeSettingsModal() {
+  if (settingsModal) {
+    settingsModal.classList.remove('active');
+  }
+}
+
+if (settingsToggleBtn) {
+  settingsToggleBtn.addEventListener('click', openSettingsModal);
+}
+
+if (closeSettingsBtn) {
+  closeSettingsBtn.addEventListener('click', closeSettingsModal);
+}
+
+if (settingsModal) {
+  settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+      closeSettingsModal();
+    }
+  });
+}
+
 // History Modal Controls
 function openHistoryModal() {
   if (historyModal) {
@@ -1329,6 +1594,39 @@ if (historyModal) {
   historyModal.addEventListener('click', (e) => {
     if (e.target === historyModal) {
       closeHistoryModal();
+    }
+  });
+}
+
+// Transcribe Modal Controls
+function openTranscribeModal() {
+  if (transcribeModal) {
+    transcribeModal.classList.add('active');
+  }
+}
+
+function closeTranscribeModal(force = false) {
+  if (isFileTranscribing && !force) {
+    showToast('No se puede cerrar mientras la transcripción está en progreso', 'warning');
+    return;
+  }
+  if (transcribeModal) {
+    transcribeModal.classList.remove('active');
+  }
+}
+
+if (transcribeToggleBtn) {
+  transcribeToggleBtn.addEventListener('click', openTranscribeModal);
+}
+
+if (closeTranscribeBtn) {
+  closeTranscribeBtn.addEventListener('click', closeTranscribeModal);
+}
+
+if (transcribeModal) {
+  transcribeModal.addEventListener('click', (e) => {
+    if (e.target === transcribeModal) {
+      closeTranscribeModal();
     }
   });
 }
@@ -1537,14 +1835,16 @@ async function startFileTranscribe() {
   }
 
   isFileTranscribing = true;
+  updateSaveStatusState();
+  updateUI();
   hideFileError();
 
   if (progressContainer) progressContainer.classList.remove('hidden');
   if (startFileTranscribeBtn) startFileTranscribeBtn.classList.add('hidden');
   if (cancelFileTranscribeBtn) cancelFileTranscribeBtn.classList.remove('hidden');
 
-  if (audioProgressBar) audioProgressBar.style.width = '20%';
-  if (audioProgressPercent) audioProgressPercent.textContent = '20%';
+  setProgressBar(10);
+  startSmoothProgress(10, 95, 7000);
 
   try {
     showToast(`Transcribiendo "${selectedAudioFile.name}"...`);
@@ -1604,8 +1904,8 @@ async function startFileTranscribe() {
       resultText = data.text || data.text_output || '';
     }
 
-    if (audioProgressBar) audioProgressBar.style.width = '90%';
-    if (audioProgressPercent) audioProgressPercent.textContent = '90%';
+    stopSmoothProgress();
+    setProgressBar(95);
 
     if (resultText && smartPunctuationEnabled) {
       resultText = applySmartPunctuation(resultText, langSelect.value);
@@ -1634,164 +1934,176 @@ async function startFileTranscribe() {
     const errMessage = err.message || 'Error al procesar el archivo.';
     showToast('La API de la clave no respondió. Cambiando a transcripción local por reproducción...', 'warning');
     showFileError(`${errMessage}. Iniciando transcripción en vivo reproduciendo el audio...`);
-    
+
     // Automatic failover: stream audio playback locally into Web Speech API
     await runWebAudioStreamFallback();
   }
 }
 
 async function runWebAudioStreamFallback() {
-    try {
-      const objectUrl = URL.createObjectURL(selectedAudioFile);
-      fileAudioElement = new Audio(objectUrl);
+  try {
+    const objectUrl = URL.createObjectURL(selectedAudioFile);
+    fileAudioElement = new Audio(objectUrl);
 
-      const speed = parseFloat(speedSelect ? speedSelect.value : 1.5);
-      fileAudioElement.playbackRate = speed;
+    const speed = parseFloat(speedSelect ? speedSelect.value : 1.5);
+    fileAudioElement.playbackRate = speed;
 
-      stopMicrophone();
-      await initAudioContext(true);
+    stopMicrophone();
+    stopSmoothProgress();
+    await initAudioContext(true);
 
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
-      fileMediaSourceNode = audioCtx.createMediaElementSource(fileAudioElement);
-      if (analyser) {
-        fileMediaSourceNode.connect(analyser);
-      }
-      fileMediaSourceNode.connect(audioCtx.destination);
-
-      isRecording = true;
-      activeSource = 'button';
-      updateUI();
-      startSpeechRecognitionEngine();
-
-      fileAudioElement.ontimeupdate = () => {
-        if (fileAudioElement && fileAudioElement.duration) {
-          const pct = Math.min(100, Math.floor((fileAudioElement.currentTime / fileAudioElement.duration) * 100));
-          if (audioProgressBar) audioProgressBar.style.width = pct + '%';
-          if (audioProgressPercent) audioProgressPercent.textContent = pct + '%';
-        }
-      };
-
-      fileAudioElement.onended = () => {
-        finishFileTranscription(true);
-      };
-
-      fileAudioElement.onerror = (err) => {
-        console.error('Audio file playback error:', err);
-        showToast('Error al reproducir el archivo de audio', 'danger');
-        finishFileTranscription(false);
-      };
-
-      await fileAudioElement.play();
-      showToast(`Transcribiendo "${selectedAudioFile.name}" a ${speed}x...`);
-    } catch (err) {
-      console.error('Failed to start file transcription fallback:', err);
-      showToast('Error al procesar el archivo', 'danger');
-      finishFileTranscription(false);
-    }
-  }
-
-  function finishFileTranscription(completed = false) {
-    if (fileAudioElement) {
-      fileAudioElement.pause();
-      if (fileAudioElement.src) {
-        URL.revokeObjectURL(fileAudioElement.src);
-      }
-      fileAudioElement = null;
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
     }
 
-    if (fileMediaSourceNode) {
-      try {
-        fileMediaSourceNode.disconnect();
-      } catch (e) { }
-      fileMediaSourceNode = null;
+    fileMediaSourceNode = audioCtx.createMediaElementSource(fileAudioElement);
+    if (analyser) {
+      fileMediaSourceNode.connect(analyser);
     }
+    fileMediaSourceNode.connect(audioCtx.destination);
 
-    isFileTranscribing = false;
-    isRecording = false;
-    activeSource = null;
-
-    if (recognition && recognitionRunning) {
-      recognition.stop();
-    }
-
+    isRecording = true;
+    activeSource = 'button';
     updateUI();
+    startSpeechRecognitionEngine();
 
-    // Reset UI Controls
-    if (startFileTranscribeBtn) startFileTranscribeBtn.classList.remove('hidden');
-    if (cancelFileTranscribeBtn) cancelFileTranscribeBtn.classList.add('hidden');
-    if (progressContainer) progressContainer.classList.add('hidden');
-
-    if (completed && selectedAudioFile) {
-      if (audioProgressBar) audioProgressBar.style.width = '100%';
-      if (audioProgressPercent) audioProgressPercent.textContent = '100%';
-
-      archiveCurrentSession(`Audio subido: ${selectedAudioFile.name}`);
-      showToast('¡Transcripción de archivo de audio completada!');
-    }
-  }
-
-  // Drag and Drop Event Listeners
-  if (audioDropzone) {
-    audioDropzone.addEventListener('click', (e) => {
-      if (audioFileInput && e.target !== audioFileInput) {
-        audioFileInput.click();
+    fileAudioElement.ontimeupdate = () => {
+      if (fileAudioElement && fileAudioElement.duration) {
+        const pct = Math.min(100, Math.floor((fileAudioElement.currentTime / fileAudioElement.duration) * 100));
+        setProgressBar(pct);
       }
-    });
+    };
 
-    audioDropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      audioDropzone.classList.add('dropzone-hover');
-    });
+    fileAudioElement.onended = () => {
+      finishFileTranscription(true);
+    };
 
-    audioDropzone.addEventListener('dragleave', () => {
-      audioDropzone.classList.remove('dropzone-hover');
-    });
-
-    audioDropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      audioDropzone.classList.remove('dropzone-hover');
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
-        handleSelectedAudioFile(e.dataTransfer.files[0]);
-      }
-    });
-  }
-
-  if (audioFileInput) {
-    audioFileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files[0]) {
-        handleSelectedAudioFile(e.target.files[0]);
-      }
-    });
-  }
-
-  if (removeFileBtn) {
-    removeFileBtn.addEventListener('click', resetAudioFileState);
-  }
-
-  if (startFileTranscribeBtn) {
-    startFileTranscribeBtn.addEventListener('click', startFileTranscribe);
-  }
-
-  if (cancelFileTranscribeBtn) {
-    cancelFileTranscribeBtn.addEventListener('click', () => {
+    fileAudioElement.onerror = (err) => {
+      console.error('Audio file playback error:', err);
+      showToast('Error al reproducir el archivo de audio', 'danger');
       finishFileTranscription(false);
-      showToast('Transcripción de archivo detenida');
-    });
+    };
+
+    await fileAudioElement.play();
+    showToast(`Transcribiendo "${selectedAudioFile.name}" a ${speed}x...`);
+  } catch (err) {
+    console.error('Failed to start file transcription fallback:', err);
+    showToast('Error al procesar el archivo', 'danger');
+    finishFileTranscription(false);
+  }
+}
+
+function finishFileTranscription(completed = false) {
+  stopSmoothProgress();
+
+  if (fileAudioElement) {
+    fileAudioElement.pause();
+    if (fileAudioElement.src) {
+      URL.revokeObjectURL(fileAudioElement.src);
+    }
+    fileAudioElement = null;
   }
 
-  if (speedSelect) {
-    speedSelect.addEventListener('change', () => {
-      if (fileAudioElement && isFileTranscribing) {
-        fileAudioElement.playbackRate = parseFloat(speedSelect.value);
-        showToast(`Velocidad cambiada a ${speedSelect.value}x`);
+  if (fileMediaSourceNode) {
+    try {
+      fileMediaSourceNode.disconnect();
+    } catch (e) { }
+    fileMediaSourceNode = null;
+  }
+
+  isFileTranscribing = false;
+  isRecording = false;
+  activeSource = null;
+
+  if (recognition && recognitionRunning) {
+    recognition.stop();
+  }
+
+  updateSaveStatusState();
+  updateUI();
+
+  // Reset UI Controls
+  if (startFileTranscribeBtn) startFileTranscribeBtn.classList.remove('hidden');
+  if (cancelFileTranscribeBtn) cancelFileTranscribeBtn.classList.add('hidden');
+  if (progressContainer) progressContainer.classList.add('hidden');
+
+  if (completed && selectedAudioFile) {
+    setProgressBar(100);
+
+    archiveCurrentSession(`Audio subido: ${selectedAudioFile.name}`);
+    showToast('¡Transcripción de archivo de audio completada!');
+
+    // Automatically close modal and bring user back to main interface
+    setTimeout(() => {
+      closeTranscribeModal(true);
+      if (transcriptText) {
+        transcriptText.focus();
+        const len = transcriptText.value.length;
+        transcriptText.setSelectionRange(len, len);
       }
-    });
+    }, 650);
   }
+}
 
-  // Load storage on startup
-  loadTranscriptFromStorage();
+// Drag and Drop Event Listeners
+if (audioDropzone) {
+  audioDropzone.addEventListener('click', (e) => {
+    if (audioFileInput && e.target !== audioFileInput) {
+      audioFileInput.click();
+    }
+  });
+
+  audioDropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    audioDropzone.classList.add('dropzone-hover');
+  });
+
+  audioDropzone.addEventListener('dragleave', () => {
+    audioDropzone.classList.remove('dropzone-hover');
+  });
+
+  audioDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    audioDropzone.classList.remove('dropzone-hover');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleSelectedAudioFile(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+if (audioFileInput) {
+  audioFileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleSelectedAudioFile(e.target.files[0]);
+    }
+  });
+}
+
+if (removeFileBtn) {
+  removeFileBtn.addEventListener('click', resetAudioFileState);
+}
+
+if (startFileTranscribeBtn) {
+  startFileTranscribeBtn.addEventListener('click', startFileTranscribe);
+}
+
+if (cancelFileTranscribeBtn) {
+  cancelFileTranscribeBtn.addEventListener('click', () => {
+    finishFileTranscription(false);
+    showToast('Transcripción de archivo detenida');
+  });
+}
+
+if (speedSelect) {
+  speedSelect.addEventListener('change', () => {
+    if (fileAudioElement && isFileTranscribing) {
+      fileAudioElement.playbackRate = parseFloat(speedSelect.value);
+      showToast(`Velocidad cambiada a ${speedSelect.value}x`);
+    }
+  });
+}
+
+// Load storage on startup
+loadTranscriptFromStorage();
 
 
