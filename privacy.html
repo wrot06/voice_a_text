@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidad - Voz a Texto</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --border-color: #334155;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 40px 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+    }
+    h1 {
+      color: var(--text-main);
+      font-size: 2rem;
+      margin-bottom: 8px;
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 12px;
+    }
+    .date {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+    h2 {
+      color: var(--primary);
+      font-size: 1.3rem;
+      margin-top: 28px;
+      margin-bottom: 12px;
+    }
+    p, li {
+      color: #cbd5e1;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+    strong {
+      color: var(--text-main);
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Política de Privacidad</h1>
+    <p class="subtitle"><strong>Voz a Texto - Transcriptor de Audio y Micrófono</strong></p>
+    <div class="date">Última actualización: 9 de septiembre de 2026</div>
+
+    <p>Esta Política de Privacidad describe cómo la extensión de Chrome <strong>"Voz a Texto - Transcriptor de Audio y Micrófono"</strong> (en adelante, "la Extensión") maneja, procesa y protege la información y datos de los usuarios.</p>
+
+    <h2>1. Información que Recopilamos y Procesamos</h2>
+    <p>La Extensión está diseñada respetando la privacidad del usuario. Los permisos solicitados se utilizan de manera estricta para el funcionamiento de la herramienta:</p>
+    
+    <h3>a) Micrófono y Entrada de Audio</h3>
+    <ul>
+      <li><strong>Uso:</strong> La Extensión solicita acceso al micrófono de tu dispositivo únicamente cuando activas el botón de grabación o el comando de voz para realizar transcripciones de voz a texto.</li>
+      <li><strong>Procesamiento:</strong> El audio capturado por el micrófono se procesa a través de la API estándar de reconocimiento de voz del navegador (<code>Web Speech API</code>).</li>
+      <li><strong>Almacenamiento:</strong> Ningún archivo ni fragmento de audio es grabado en segundo plano ni transmitido o almacenado en servidores externos o propietarios.</li>
+    </ul>
+
+    <h3>b) Archivos de Audio y Video Locales</h3>
+    <ul>
+      <li><strong>Uso:</strong> Cuando utilizas la función de transcribir archivos (archivos <code>.mp3</code>, <code>.wav</code>, <code>.mp4</code>, etc.), el archivo es reproducido y procesado localmente en tu navegador para generar el texto correspondiente.</li>
+      <li><strong>Almacenamiento:</strong> La Extensión no sube ni guarda tus archivos multimedia en servidores externos.</li>
+    </ul>
+
+    <h3>c) Datos de Almacenamiento Local (<code>chrome.storage</code> / <code>localStorage</code>)</h3>
+    <ul>
+      <li><strong>Uso:</strong> La Extensión utiliza el almacenamiento local del navegador para guardar preferencias de usuario (idioma seleccionado, puntuación inteligente, atajos) e historial de transcripciones.</li>
+      <li><strong>Privacidad:</strong> Estos datos se quedan almacenados exclusivamente de forma local en tu dispositivo y puedes borrarlos en cualquier momento.</li>
+    </ul>
+
+    <h2>2. Compartición y Venta de Datos (Terceros)</h2>
+    <ul>
+      <li><strong>No Venta de Datos:</strong> No vendemos, alquilamos, comercializamos ni transferimos datos personales ni información de voz a terceros.</li>
+      <li><strong>Sin Rastreo de Terceros:</strong> La Extensión no utiliza scripts de seguimiento de terceros, rastreadores ni redes publicitarias.</li>
+    </ul>
+
+    <h2>3. Cumplimiento de Políticas de Chrome Web Store</h2>
+    <p>La Extensión cumple con la Política de Datos de Usuario del Programa de Desarrolladores de Chrome Web Store:</p>
+    <ul>
+      <li>Solo solicitamos los permisos mínimos necesarios.</li>
+      <li>El uso de los datos personales recopilados se limita estrictamente a proporcionar las funcionalidades principales declaradas de la extensión.</li>
+    </ul>
+
+    <h2>4. Retención y Eliminación de Datos</h2>
+    <p>Todos los datos generados permanecen bajo tu control directo en tu navegador. Puedes borrar el historial de transcripciones en cualquier momento utilizando el botón "Limpiar Historial" dentro de la interfaz de la Extensión o desinstalando la Extensión.</p>
+
+    <h2>5. Contacto</h2>
+    <p>Si tienes alguna duda o pregunta sobre esta Política de Privacidad, puedes ponerte en contacto con el desarrollador a través del correo de soporte habilitado en la ficha de Chrome Web Store.</p>
+
+    <div class="footer">
+      &copy; 2026 Voz a Texto - Transcriptor de Audio y Micrófono. Todos los derechos reservados.
+    </div>
+  </div>
+</body>
+</html>
